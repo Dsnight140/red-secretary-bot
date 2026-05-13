@@ -81,7 +81,7 @@ process.on('uncaughtException', (error) => {
     console.error('[SYSTEM] Необработанное исключение:', error);
 });
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`[SYSTEM] Секретарь ${client.user.tag} заступил на пост.`);
     await logToChannel(`🤖 Бот ${client.user.tag} успешно запущен и готов к работе!`);
     // Установка статуса бота
