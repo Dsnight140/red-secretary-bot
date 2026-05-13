@@ -1,5 +1,15 @@
 const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
+const http = require('http');
 require('dotenv').config();
+
+// Мини-сервер для Render (бесплатный Web Service требует открытый порт)
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is running');
+}).listen(PORT, () => {
+    console.log(`[SYSTEM] HTTP сервер запущен на порту ${PORT}`);
+});
 
 // Инициализация клиента с нужными правами
 const client = new Client({
