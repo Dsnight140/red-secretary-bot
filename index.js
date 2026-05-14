@@ -4,19 +4,6 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const dataPath = path.join(__dirname, 'data.json');
-let botData = { authChannelId: null, authMsgId: null, rulesChannelId: null, rulesMsgId: null };
-if (fs.existsSync(dataPath)) {
-    try {
-        botData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-    } catch (e) {
-        console.error('[SYSTEM] Ошибка чтения data.json', e);
-    }
-}
-
-function saveData() {
-    fs.writeFileSync(dataPath, JSON.stringify(botData, null, 2));
-}
 // Мини-сервер для Render (бесплатный Web Service требует открытый порт)
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
@@ -41,7 +28,10 @@ const client = new Client({
 const TOKEN = process.env.DISCORD_TOKEN;
 const CONFIG = {
     redColor: 0xFF0000,
+    rulesChannelId: '1503691024579559458', // Замени на реальный ID канала с правилами
     rulesMsgId: '1503715441577562223',
+    authChannelId: '1503691024579559458', // Замени на реальный ID канала со вступлением
+    authMsgId: 'ТВОЙ_ID_СООБЩЕНИЯ_ВСТУПЛЕНИЯ', // Замени на реальный ID сообщения со вступлением
     memberRoleId: '1504135832259395584',
     adminChannelId: '1503722511932588124',
     publicChannelId: '1503691844016406558',
@@ -145,79 +135,10 @@ client.on('messageCreate', async (message) => {
         }
 
         if (isAdmin) {
-            helpText += '\n**АДМИНСКИЕ КОМАНДЫ:**\n!status текст — установить статус бота\n!setup_auth #канал1 #канал2 — отправить сообщения приветствия и правил\n';
+            helpText += '\n**АДМИНСКИЕ КОМАНДЫ:**\n!status текст — установить статус бота\n';
         }
 
         return message.channel.send(helpText);
-    }
-
-    if (normalized === 'setup_auth' && isAdmin) {
-        const authChannel = message.mentions.channels.first();
-        const rulesChannel = message.mentions.channels.last();
-        if (!authChannel || !rulesChannel || authChannel.id === rulesChannel.id) {
-            return message.channel.send('❌ Укажи два разных канала: !setup_auth #канал_вступления #канал_правил');
-        }
-
-        const authText = `[ ＡＵＴＨＥＮＴＩＣＡＴＩＯＮ ]
-
-🩸 Добро пожаловать в ряды AGGRESSED 🩸
-
-Чтобы получить доступ к штабу и арсеналу, тебе необходимо пройти идентификацию личности.
-
-⚠️ ТРЕБОВАНИЯ К ПРОФИЛЮ:
-Твой никнейм на сервере должен строго соответствовать регламенту:
-[ Имя Фамилия | Отдел | Ранг ]
-Пример: [ Ivan Ivanov | Tactical | 1 ]
-
-📑 ИНСТРУКТАЖ:
-Перед началом работы обязан ознакомиться с кодексом чести и правилами:
-📜 ОЗНАКОМИТЬСЯ С УСТАВОМ - https://discord.com/channels/1503691023514079342/1504078856322027581
-
-Нажми на реакцию 🩸 ниже, чтобы подтвердить, что ты настроил профиль и готов к службе.`;
-
-        const rulesText = `🟥 [ ＣＯＭＭＵＮＩＴＹ  ＲＵＬＥＳ ] 🟥
-1. ВЗАИМООТНОШЕНИЯ (Zero Tolerance)
-
-1.1. Оскорбление родных. Любое упоминание родителей или семьи в негативном ключе — МГНОВЕННЫЙ БАН без права обжалования.
-
-1.2. Токсичность. Мы здесь, чтобы играть и развивать AGGRESSED. Неадекватное поведение, постоянный «срач» и провокации внутри состава караются киком.
-
-1.3. Дискриминация. Запрещены любые высказывания, задевающие нацию, религию или ориентацию участников.
-
-2. КАНАЛЫ СВЯЗИ (Structure)
-
-2.1. Оффтоп. Не спамьте в рабочих каналах. Для этого есть канал #оффтоп.
-
-2.2. Голосовой этикет. В каналах [ ＶＯＩＣＥ ] запрещено использовать Soundpad (без разрешения), кричать или перебивать старших во время собраний.
-
-2.3. Реклама. Любые ссылки на сторонние дискорд-серверы или услуги без согласия руководства — бан.
-
-3. БЕЗОПАСНОСТЬ (Security)
-
-3.1. Слив инфы. Пересылка скриншотов из закрытых каналов или переписок руководства третьим лицам — занесение в чёрный список проекта.
-
-3.2. Фейковые аккаунты. Нахождение со вторых аккаунтов без предупреждения запрещено.
-
-Нажми на реакцию 🩸 ниже, чтобы подтвердить принятие условий.`;
-
-        try {
-            const authMsg = await authChannel.send(authText);
-            await authMsg.react('🩸');
-
-            const rulesMsg = await rulesChannel.send(rulesText);
-            await rulesMsg.react('🩸');
-
-            botData.authChannelId = authChannel.id;
-            botData.authMsgId = authMsg.id;
-            botData.rulesChannelId = rulesChannel.id;
-            botData.rulesMsgId = rulesMsg.id;
-            saveData();
-
-            return message.channel.send('✅ Сообщения успешно отправлены, и их ID сохранены в базу!');
-        } catch (error) {
-            console.error('[SYSTEM] Ошибка при отправке сообщений авторизации:', error);
-            return message.channel.send('❌ Ошибка при отправке. Проверьте права бота в указанных каналах.');
-        }
     }
 
     // Проверка прав для объявлений
@@ -389,13 +310,12 @@ async function handleReactionUpdate(reaction, user, action) {
     const emoji = reaction.emoji.name;
 
     // Проверка авторизации (вступления и правил)
-    if ((message.id === botData.authMsgId || message.id === botData.rulesMsgId) && emoji === '🩸') {
+    if ((message.id === CONFIG.authMsgId || message.id === CONFIG.rulesMsgId) && emoji === '🩸') {
         const guild = message.guild;
         const member = await guild.members.fetch(user.id).catch(() => null);
         if (!member) return;
 
         // Если действие Удалено, нам нечего делать, просто возвращаемся.
-        // Роль снимать за удаление реакции не просили, но можно добавить если надо.
         if (action === 'Удалено') return;
 
         try {
@@ -403,10 +323,10 @@ async function handleReactionUpdate(reaction, user, action) {
             let authReacted = false;
             let rulesReacted = false;
 
-            if (botData.authChannelId && botData.authMsgId) {
-                const aCh = await guild.channels.fetch(botData.authChannelId).catch(() => null);
+            if (CONFIG.authChannelId && CONFIG.authMsgId) {
+                const aCh = await guild.channels.fetch(CONFIG.authChannelId).catch(() => null);
                 if (aCh) {
-                    const aMsg = await aCh.messages.fetch(botData.authMsgId).catch(() => null);
+                    const aMsg = await aCh.messages.fetch(CONFIG.authMsgId).catch(() => null);
                     if (aMsg) {
                         const reactionObj = aMsg.reactions.cache.get('🩸');
                         if (reactionObj) {
@@ -417,10 +337,10 @@ async function handleReactionUpdate(reaction, user, action) {
                 }
             }
 
-            if (botData.rulesChannelId && botData.rulesMsgId) {
-                const rCh = await guild.channels.fetch(botData.rulesChannelId).catch(() => null);
+            if (CONFIG.rulesChannelId && CONFIG.rulesMsgId) {
+                const rCh = await guild.channels.fetch(CONFIG.rulesChannelId).catch(() => null);
                 if (rCh) {
-                    const rMsg = await rCh.messages.fetch(botData.rulesMsgId).catch(() => null);
+                    const rMsg = await rCh.messages.fetch(CONFIG.rulesMsgId).catch(() => null);
                     if (rMsg) {
                         const reactionObj = rMsg.reactions.cache.get('🩸');
                         if (reactionObj) {
@@ -452,9 +372,9 @@ async function handleReactionUpdate(reaction, user, action) {
                 }
             } else {
                 // Подсказываем, чего не хватает
-                if (message.id === botData.authMsgId && !rulesReacted) {
+                if (message.id === CONFIG.authMsgId && !rulesReacted) {
                     await user.send('Отлично! Теперь тебе нужно прочитать и принять правила в канале правил.').catch(() => null);
-                } else if (message.id === botData.rulesMsgId && !authReacted) {
+                } else if (message.id === CONFIG.rulesMsgId && !authReacted) {
                     await user.send('Отлично! Теперь тебе нужно ознакомиться с инструктажем и подтвердить его в канале вступления.').catch(() => null);
                 }
             }
