@@ -42,7 +42,7 @@ const TOKEN = process.env.DISCORD_TOKEN;
 const CONFIG = {
     redColor: 0xFF0000,
     rulesMsgId: '1503715441577562223',
-    memberRoleId: '1503693782871314482',
+    memberRoleId: '1504135832259395584',
     adminChannelId: '1503722511932588124',
     publicChannelId: '1503691844016406558',
     roleRequestChannelId: '1503691024579559458',
@@ -203,7 +203,7 @@ client.on('messageCreate', async (message) => {
         try {
             const authMsg = await authChannel.send(authText);
             await authMsg.react('🩸');
-            
+
             const rulesMsg = await rulesChannel.send(rulesText);
             await rulesMsg.react('🩸');
 
