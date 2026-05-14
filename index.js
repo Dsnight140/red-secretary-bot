@@ -28,10 +28,10 @@ const client = new Client({
 const TOKEN = process.env.DISCORD_TOKEN;
 const CONFIG = {
     redColor: 0xFF0000,
-    rulesChannelId: '1503691024579559458', // Замени на реальный ID канала с правилами
-    rulesMsgId: '1503715441577562223',
-    authChannelId: '1503691024579559458', // Замени на реальный ID канала со вступлением
-    authMsgId: 'ТВОЙ_ID_СООБЩЕНИЯ_ВСТУПЛЕНИЯ', // Замени на реальный ID сообщения со вступлением
+    rulesChannelId: '1504078856322027581',
+    rulesMsgId: '1504539060784599222',
+    authChannelId: '1503691024579559458',
+    authMsgId: '1504539057672290344',
     memberRoleId: '1504135832259395584',
     adminChannelId: '1503722511932588124',
     publicChannelId: '1503691844016406558',
