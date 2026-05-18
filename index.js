@@ -38,8 +38,9 @@ const CONFIG = {
     roleRequestChannelId: '1503691024579559458',
     contractChannelId: '1503727272799109203',
     vzpChannelId: '1503727959054221343',
-    ticketCheckChannelId: 'ID_КАНАЛА_ПРОВЕРКИ_ТИКЕТОВ', // Замени на ID канала ticket check
-    interviewRoleId: 'ID_РОЛИ_ДЛЯ_ОБЗВОНА', // Замени на ID роли для обзвона
+    ticketCheckChannelId: '1505955927289888819',
+    interviewRoleId: '1505956439552950493',
+    ticketModeratorRoleId: '1504143468254072884', // Роль для проверки тикетов
     logChannelId: '1503722511932588124', // Канал для логирования действий бота
     // Роли для прав доступа
     adminRoleId: '1503693026814328864', // Все команды
@@ -613,8 +614,8 @@ client.on('interactionCreate', async interaction => {
                     ]
                 });
 
-                // Добавляем права модераторам
-                const rolesToAdd = [CONFIG.adminRoleId, ...CONFIG.moderatorRoleIds];
+                // Добавляем права модераторам тикетов и админам
+                const rolesToAdd = [CONFIG.adminRoleId, CONFIG.ticketModeratorRoleId];
                 for (const roleId of rolesToAdd) {
                     await ticketChannel.permissionOverwrites.create(roleId, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => null);
                 }
@@ -699,9 +700,9 @@ client.on('interactionCreate', async interaction => {
             const targetUserId = parts[2];
             const ticketChannelId = parts[3];
 
-            // Проверяем права админа/модератора
+            // Проверяем права модератора тикетов
             const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-            if (!member || (!hasPermission(member, CONFIG.adminRoleId) && !hasPermission(member, CONFIG.moderatorRoleIds))) {
+            if (!member || (!hasPermission(member, CONFIG.adminRoleId) && !hasPermission(member, CONFIG.ticketModeratorRoleId))) {
                 return interaction.reply({ content: '❌ У вас нет прав для проверки тикетов!', ephemeral: true });
             }
 
