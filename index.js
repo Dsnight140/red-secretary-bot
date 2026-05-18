@@ -588,6 +588,60 @@ client.on('messageReactionRemove', async (reaction, user) => {
 client.on('interactionCreate', async interaction => {
     if (interaction.isButton()) {
         if (interaction.customId === 'create_ticket') {
+            await interaction.deferReply({ ephemeral: true });
+
+            // Ищем следующий номер тикета
+            const ticketChannels = interaction.guild.channels.cache.filter(c => c.name.startsWith('ticket-'));
+            let maxNum = 0;
+            ticketChannels.forEach(c => {
+                const num = parseInt(c.name.split('-')[1]);
+                if (!isNaN(num) && num > maxNum) maxNum = num;
+            });
+            const newTicketNum = maxNum + 1;
+            const channelName = `ticket-${String(newTicketNum).padStart(4, '0')}`;
+
+            try {
+                const parentId = interaction.channel.parentId;
+                
+                const ticketChannel = await interaction.guild.channels.create({
+                    name: channelName,
+                    type: 0, // GuildText
+                    parent: parentId, // создаем в той же категории
+                    permissionOverwrites: [
+                        { id: interaction.guild.id, deny: ['ViewChannel'] },
+                        { id: interaction.user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+                    ]
+                });
+
+                // Добавляем права модераторам
+                const rolesToAdd = [CONFIG.adminRoleId, ...CONFIG.moderatorRoleIds];
+                for (const roleId of rolesToAdd) {
+                    await ticketChannel.permissionOverwrites.create(roleId, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => null);
+                }
+
+                const embed = new EmbedBuilder()
+                    .setColor(CONFIG.redColor)
+                    .setTitle('🎫 Твоя заявка')
+                    .setDescription(`Привет, <@${interaction.user.id}>! Нажми на кнопку ниже, чтобы заполнить анкету на вступление.`);
+
+                const row = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('fill_ticket_form')
+                            .setLabel('Заполнить анкету')
+                            .setStyle(ButtonStyle.Primary)
+                    );
+
+                await ticketChannel.send({ content: `<@${interaction.user.id}>`, embeds: [embed], components: [row] });
+                await interaction.editReply({ content: `✅ Твой тикет создан: <#${ticketChannel.id}>` });
+            } catch (error) {
+                console.error('[SYSTEM] Ошибка создания канала тикета:', error);
+                await interaction.editReply({ content: '❌ Ошибка при создании тикета. Обратись к администрации.' });
+            }
+            return;
+        }
+
+        if (interaction.customId === 'fill_ticket_form') {
             const modal = new ModalBuilder()
                 .setCustomId('ticket_modal')
                 .setTitle('Заявка на вступление');
@@ -643,6 +697,7 @@ client.on('interactionCreate', async interaction => {
             const parts = interaction.customId.split('_');
             const action = parts[1]; // reject, interview, accept
             const targetUserId = parts[2];
+            const ticketChannelId = parts[3];
 
             // Проверяем права админа/модератора
             const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
@@ -672,6 +727,14 @@ client.on('interactionCreate', async interaction => {
                     await targetMember.send('✅ Ваша заявка одобрена! Вы приняты сразу.').catch(() => null);
                 }
             }
+
+            // Удаляем канал тикета, если он был передан и существует
+            if (ticketChannelId) {
+                const tChannel = interaction.guild.channels.cache.get(ticketChannelId);
+                if (tChannel) {
+                    await tChannel.delete().catch(() => null);
+                }
+            }
         }
     }
 
@@ -698,15 +761,15 @@ client.on('interactionCreate', async interaction => {
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId(`ticket_reject_${interaction.user.id}`)
+                        .setCustomId(`ticket_reject_${interaction.user.id}_${interaction.channelId}`)
                         .setLabel('Отклонить')
                         .setStyle(ButtonStyle.Danger),
                     new ButtonBuilder()
-                        .setCustomId(`ticket_interview_${interaction.user.id}`)
+                        .setCustomId(`ticket_interview_${interaction.user.id}_${interaction.channelId}`)
                         .setLabel('Допустить к обзвону')
                         .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
-                        .setCustomId(`ticket_accept_${interaction.user.id}`)
+                        .setCustomId(`ticket_accept_${interaction.user.id}_${interaction.channelId}`)
                         .setLabel('Принять сразу')
                         .setStyle(ButtonStyle.Success)
                 );
