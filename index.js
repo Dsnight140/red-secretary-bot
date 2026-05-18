@@ -709,27 +709,73 @@ client.on('interactionCreate', async interaction => {
             const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
 
             if (action === 'reject') {
-                await interaction.update({ content: `❌ Заявка отклонена модератором ${interaction.user.tag}`, components: [] });
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0x2F3136) // Темно-серый
+                    .setTitle(`${interaction.message.embeds[0].title} (❌ ОТКЛОНЕН)`);
+                await interaction.update({ content: `❌ Заявка отклонена модератором <@${interaction.user.id}>`, embeds: [embed], components: [] });
                 if (targetMember) {
                     await targetMember.send('❌ Ваша заявка на вступление была отклонена.').catch(() => null);
                 }
             } else if (action === 'interview') {
-                await interaction.update({ content: `⏳ Модератор ${interaction.user.tag} допустил пользователя к обзвону.`, components: [] });
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0xFFA500) // Оранжевый
+                    .setTitle(`${interaction.message.embeds[0].title} (⏳ НА ОБЗВОНЕ)`);
+                
+                const newRow = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`ticket_fail_${targetUserId}_${ticketChannelId}`)
+                            .setLabel('Не прошел обзвон')
+                            .setStyle(ButtonStyle.Danger),
+                        new ButtonBuilder()
+                            .setCustomId(`ticket_pass_${targetUserId}_${ticketChannelId}`)
+                            .setLabel('Прошел обзвон')
+                            .setStyle(ButtonStyle.Success)
+                    );
+                
+                await interaction.update({ content: `⏳ Модератор <@${interaction.user.id}> отправил пользователя на обзвон.`, embeds: [embed], components: [newRow] });
                 if (targetMember) {
                     const role = interaction.guild.roles.cache.get(CONFIG.interviewRoleId);
                     if (role) await targetMember.roles.add(role).catch(console.error);
-                    await targetMember.send('✅ Ваша заявка одобрена! Вы допущены к обзвону.').catch(() => null);
+                    await targetMember.send('⏳ Ваша заявка одобрена! Вы допущены к обзвону. Пожалуйста, ожидайте дальнейших инструкций в вашем тикете.').catch(() => null);
                 }
+                return; // Важно: не удаляем канал тикета, так как он еще нужен для обзвона
             } else if (action === 'accept') {
-                await interaction.update({ content: `✅ Модератор ${interaction.user.tag} принял пользователя без обзвона.`, components: [] });
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0x00FF00) // Зеленый
+                    .setTitle(`${interaction.message.embeds[0].title} (✅ ПРИНЯТ БЕЗ ОБЗВОНА)`);
+                await interaction.update({ content: `✅ Модератор <@${interaction.user.id}> принял пользователя сразу.`, embeds: [embed], components: [] });
                 if (targetMember) {
                     const role = interaction.guild.roles.cache.get(CONFIG.memberRoleId);
                     if (role) await targetMember.roles.add(role).catch(console.error);
-                    await targetMember.send('✅ Ваша заявка одобрена! Вы приняты сразу.').catch(() => null);
+                    await targetMember.send('✅ Ваша заявка одобрена! Вы приняты сразу. Добро пожаловать!').catch(() => null);
+                }
+            } else if (action === 'pass') {
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0x00FF00) // Зеленый
+                    .setTitle(interaction.message.embeds[0].title.replace('(⏳ НА ОБЗВОНЕ)', '(✅ ПРОШЕЛ ОБЗВОН)'));
+                await interaction.update({ content: `✅ Модератор <@${interaction.user.id}> подтвердил прохождение обзвона.`, embeds: [embed], components: [] });
+                if (targetMember) {
+                    const interviewRole = interaction.guild.roles.cache.get(CONFIG.interviewRoleId);
+                    if (interviewRole) await targetMember.roles.remove(interviewRole).catch(console.error);
+                    
+                    const role = interaction.guild.roles.cache.get(CONFIG.memberRoleId);
+                    if (role) await targetMember.roles.add(role).catch(console.error);
+                    await targetMember.send('✅ Поздравляем! Вы успешно прошли обзвон и приняты.').catch(() => null);
+                }
+            } else if (action === 'fail') {
+                const embed = EmbedBuilder.from(interaction.message.embeds[0])
+                    .setColor(0x2F3136) // Темно-серый
+                    .setTitle(interaction.message.embeds[0].title.replace('(⏳ НА ОБЗВОНЕ)', '(❌ НЕ ПРОШЕЛ ОБЗВОН)'));
+                await interaction.update({ content: `❌ Модератор <@${interaction.user.id}> отметил, что пользователь не прошел обзвон.`, embeds: [embed], components: [] });
+                if (targetMember) {
+                    const interviewRole = interaction.guild.roles.cache.get(CONFIG.interviewRoleId);
+                    if (interviewRole) await targetMember.roles.remove(interviewRole).catch(console.error);
+                    await targetMember.send('❌ К сожалению, вы не прошли обзвон. Попробуйте в следующий раз!').catch(() => null);
                 }
             }
 
-            // Удаляем канал тикета, если он был передан и существует
+            // Удаляем канал тикета во всех случаях, КРОМЕ interview (где мы уже сделали return)
             if (ticketChannelId) {
                 const tChannel = interaction.guild.channels.cache.get(ticketChannelId);
                 if (tChannel) {
@@ -749,14 +795,17 @@ client.on('interactionCreate', async interaction => {
 
             const embed = new EmbedBuilder()
                 .setColor(CONFIG.redColor)
-                .setTitle(`🎫 Новая заявка от ${interaction.user.tag}`)
+                .setTitle(`📋 ЗАЯВКА ОТ ${interaction.user.tag.toUpperCase()}`)
+                .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true, size: 256 }))
+                .setDescription('**Пользователь заполнил анкету на вступление.**\n━━━━━━━━━━━━━━━━━━━━━━')
                 .addFields(
-                    { name: 'ИМЯ & ВОЗРАСТ В IRL & ИГРОВОЙ НИК', value: q1 },
-                    { name: 'СПИСОК СЕМЕЙ', value: q2 },
-                    { name: 'ОТКАТ СТРЕЛЬБЫ', value: q3 },
-                    { name: 'ЛВЛ & ОНЛАЙН И ЧАСОВОЙ ПОЯС', value: q4 },
-                    { name: 'ПОЧЕМУ ВЫ ХОТИТЕ ИГРАТЬ У НАС?', value: q5 }
+                    { name: '👤 ИМЯ, ВОЗРАСТ И НИКНЕЙМ', value: `>>> ${q1}` },
+                    { name: '🛡️ СПИСОК СЕМЕЙ', value: `>>> ${q2}` },
+                    { name: '🔫 ОТКАТ СТРЕЛЬБЫ', value: `>>> ${q3}` },
+                    { name: '⏱️ ЛВЛ, ОНЛАЙН И ПОЯС', value: `>>> ${q4}` },
+                    { name: '💬 ПОЧЕМУ К НАМ?', value: `>>> ${q5}` }
                 )
+                .setFooter({ text: `ID: ${interaction.user.id}` })
                 .setTimestamp();
 
             const row = new ActionRowBuilder()
