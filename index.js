@@ -288,26 +288,43 @@ client.on('messageCreate', async (message) => {
 
     if (normalized === 'setup_ticket' && isAdmin) {
         const ticketChannel = message.mentions.channels.first() || message.channel;
-        
+        // Красивый агрессивный эмбед с GIF и селектом категорий
         const embed = new EmbedBuilder()
             .setColor(CONFIG.redColor)
             .setTitle('🎫 Подача заявки')
-            .setDescription('Нажми на кнопку ниже, чтобы подать заявку на вступление.');
+            .setDescription('Нажми на селект и выбери категорию, затем нажми кнопку "Создать тикет". Мы подготовим для тебя приватный канал.')
+            // Поменяй GIF на свой URL при желании
+            .setImage('https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif')
+            .setFooter({ text: 'AGGRESSED • Тикеты' });
 
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('create_ticket')
-                    .setLabel('Create ticket')
-                    .setStyle(ButtonStyle.Primary)
-            );
+        const select = new StringSelectMenuBuilder()
+            .setCustomId('ticket_category')
+            .setPlaceholder('Выбери категорию тикета')
+            .addOptions([
+                { label: 'Вступление', value: 'admission', description: 'Заявка на вступление', emoji: '🛡️' },
+                { label: 'Тех. поддержка', value: 'support', description: 'Проблемы с ботом/сервером', emoji: '⚙️' },
+                { label: 'Модерация', value: 'moderation', description: 'Жалобы и модерация', emoji: '⚖️' },
+                { label: 'Другое', value: 'other', description: 'Прочие вопросы', emoji: '❓' }
+            ]);
+
+        const row1 = new ActionRowBuilder().addComponents(select);
+        const row2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('create_ticket')
+                .setLabel('✳️ Создать тикет')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('preview_rules')
+                .setLabel('📜 Правила')
+                .setStyle(ButtonStyle.Secondary)
+        );
 
         try {
-            await ticketChannel.send({ embeds: [embed], components: [row] });
-            return message.channel.send({ embeds: [createEmbed({ title: 'Тикет готов', description: 'Сообщение для создания тикета успешно отправлено!', footer: 'Пользователи могут нажать кнопку, чтобы создать свой тикет' })] });
+            await ticketChannel.send({ embeds: [embed], components: [row1, row2] });
+            return message.channel.send({ embeds: [createEmbed({ title: 'Готово', description: 'Сообщение с созданием тикетов отправлено.', footer: 'Проверь канал для кнопки' })] });
         } catch (error) {
             console.error('[SYSTEM] Ошибка при отправке сообщения тикета:', error);
-            return message.channel.send('❌ Ошибка при отправке. Проверьте права бота.');
+            return message.channel.send({ embeds: [createEmbed({ title: 'Ошибка', description: 'Не удалось отправить сообщение. Проверь права бота.', color: 0xFF5555 })] });
         }
     }
 
@@ -677,6 +694,11 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.isButton()) {
+        if (interaction.customId === 'preview_rules') {
+            const rulesLink = CONFIG.rulesChannelId ? `<#${CONFIG.rulesChannelId}>` : 'канал правил не настроен';
+            await interaction.reply({ embeds: [createEmbed({ title: 'Правила сервера', description: `Ознакомьтесь с правилами в ${rulesLink}`, footer: 'Если канал правил не настроен, обратитесь к администрации.' })], ephemeral: true }).catch(() => null);
+            return;
+        }
         if (interaction.customId === 'create_ticket') {
             await interaction.deferReply({ ephemeral: true });
 
@@ -891,8 +913,21 @@ client.on('interactionCreate', async interaction => {
                 }
                 const tChannel = interaction.guild.channels.cache.get(ticketChannelId);
                 if (tChannel) {
+                    // Попробуем собрать транскрипт последних сообщений и отправить модерации
+                    try {
+                        const fetched = await tChannel.messages.fetch({ limit: 100 });
+                        const messagesArray = Array.from(fetched.values()).reverse();
+                        const transcript = messagesArray.map(m => `${new Date(m.createdTimestamp).toISOString()} ${m.author.tag}: ${m.content}`).join('\n');
+                        const adminCh = await interaction.guild.channels.fetch(CONFIG.adminChannelId).catch(() => null);
+                        if (adminCh && adminCh.isTextBased()) {
+                            await adminCh.send({ content: `🧾 Транскрипт тикета ${tChannel.name} (закрыл <@${interaction.user.id}>)`, files: [{ attachment: Buffer.from(transcript, 'utf8'), name: `${tChannel.name}_transcript.txt` }] }).catch(() => null);
+                        }
+                    } catch (err) {
+                        console.error('[SYSTEM] Ошибка при создании транскрипта тикета:', err);
+                    }
+
                     await tChannel.delete().catch(() => null);
-                    return interaction.reply({ content: '✅ Тикет закрыт.', ephemeral: true });
+                    return interaction.reply({ content: '✅ Тикет закрыт и транскрипт отправлен модерации.', ephemeral: true });
                 }
                 return interaction.reply({ content: '❌ Канал тикета не найден.', ephemeral: true });
             }
