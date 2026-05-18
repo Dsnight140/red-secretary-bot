@@ -293,8 +293,7 @@ client.on('messageCreate', async (message) => {
             .setColor(CONFIG.redColor)
             .setTitle('🎫 Подача заявки')
             .setDescription('Нажми на селект и выбери категорию, затем нажми кнопку "Создать тикет". Мы подготовим для тебя приватный канал.')
-            // Поменяй GIF на свой URL при желании
-            .setImage('https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif')
+            .setImage('attachment://ticket.mp4')
             .setFooter({ text: 'AGGRESSED • Тикеты' });
 
         const select = new StringSelectMenuBuilder()
@@ -320,7 +319,7 @@ client.on('messageCreate', async (message) => {
         );
 
         try {
-            await ticketChannel.send({ embeds: [embed], components: [row1, row2] });
+            await ticketChannel.send({ embeds: [embed], components: [row1, row2], files: ['./assets/kling_20260519_作品_shot_1_5s__918_0.mp4'] });
             return message.channel.send({ embeds: [createEmbed({ title: 'Готово', description: 'Сообщение с созданием тикетов отправлено.', footer: 'Проверь канал для кнопки' })] });
         } catch (error) {
             console.error('[SYSTEM] Ошибка при отправке сообщения тикета:', error);
