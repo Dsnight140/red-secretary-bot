@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -38,6 +38,8 @@ const CONFIG = {
     roleRequestChannelId: '1503691024579559458',
     contractChannelId: '1503727272799109203',
     vzpChannelId: '1503727959054221343',
+    ticketCheckChannelId: 'ID_КАНАЛА_ПРОВЕРКИ_ТИКЕТОВ', // Замени на ID канала ticket check
+    interviewRoleId: 'ID_РОЛИ_ДЛЯ_ОБЗВОНА', // Замени на ID роли для обзвона
     logChannelId: '1503722511932588124', // Канал для логирования действий бота
     // Роли для прав доступа
     adminRoleId: '1503693026814328864', // Все команды
@@ -135,10 +137,104 @@ client.on('messageCreate', async (message) => {
         }
 
         if (isAdmin) {
-            helpText += '\n**АДМИНСКИЕ КОМАНДЫ:**\n!status текст — установить статус бота\n';
+            helpText += '\n**АДМИНСКИЕ КОМАНДЫ:**\n!status текст — установить статус бота\n!setup_auth #канал_вступления #канал_правил — отправить сообщения вступления и правил\n!setup_ticket #канал — создать сообщение с кнопкой тикета\n';
         }
 
         return message.channel.send(helpText);
+    }
+
+    if (normalized === 'setup_auth' && isAdmin) {
+        const authChannel = message.mentions.channels.first();
+        const rulesChannel = message.mentions.channels.last();
+        if (!authChannel || !rulesChannel || authChannel.id === rulesChannel.id) {
+            return message.channel.send('❌ Укажи два разных канала: !setup_auth #канал_вступления #канал_правил');
+        }
+
+        const authText = `[ ＡＵＴＨＥＮＴＩＣＡＴＩＯＮ ]
+
+🩸 Добро пожаловать в ряды AGGRESSED 🩸
+
+Чтобы получить доступ к штабу и арсеналу, тебе необходимо пройти идентификацию личности.
+
+⚠️ ТРЕБОВАНИЯ К ПРОФИЛЮ:
+Твой никнейм на сервере должен строго соответствовать регламенту:
+[ Имя Фамилия | Отдел | Ранг ]
+Пример: [ Ivan Ivanov | Tactical | 1 ]
+
+📑 ИНСТРУКТАЖ:
+Перед началом работы обязан ознакомиться с кодексом чести и правилами:
+📜 ОЗНАКОМИТЬСЯ С УСТАВОМ - https://discord.com/channels/1503691023514079342/1504078856322027581
+
+Нажми на реакцию 🩸 ниже, чтобы подтвердить, что ты настроил профиль и готов к службе.`;
+
+        const rulesText = `🟥 [ ＣＯＭＭＵＮＩＴＹ  ＲＵＬＥＳ ] 🟥
+1. ВЗАИМООТНОШЕНИЯ (Zero Tolerance)
+
+1.1. Оскорбление родных. Любое упоминание родителей или семьи в негативном ключе — МГНОВЕННЫЙ БАН без права обжалования.
+
+1.2. Токсичность. Мы здесь, чтобы играть и развивать AGGRESSED. Неадекватное поведение, постоянный «срач» и провокации внутри состава караются киком.
+
+1.3. Дискриминация. Запрещены любые высказывания, задевающие нацию, религию или ориентацию участников.
+
+2. КАНАЛЫ СВЯЗИ (Structure)
+
+2.1. Оффтоп. Не спамьте в рабочих каналах. Для этого есть канал #оффтоп.
+
+2.2. Голосовой этикет. В каналах [ ＶＯＩＣＥ ] запрещено использовать Soundpad (без разрешения), кричать или перебивать старших во время собраний.
+
+2.3. Реклама. Любые ссылки на сторонние дискорд-серверы или услуги без согласия руководства — бан.
+
+3. БЕЗОПАСНОСТЬ (Security)
+
+3.1. Слив инфы. Пересылка скриншотов из закрытых каналов или переписок руководства третьим лицам — занесение в чёрный список проекта.
+
+3.2. Фейковые аккаунты. Нахождение со вторых аккаунтов без предупреждения запрещено.
+
+Нажми на реакцию 🩸 ниже, чтобы подтвердить принятие условий.`;
+
+        try {
+            const authMsg = await authChannel.send(authText);
+            await authMsg.react('🩸');
+
+            const rulesMsg = await rulesChannel.send(rulesText);
+            await rulesMsg.react('🩸');
+
+            // Обновляем CONFIG в памяти бота, чтобы он сразу начал за ними следить
+            CONFIG.authChannelId = authChannel.id;
+            CONFIG.authMsgId = authMsg.id;
+            CONFIG.rulesChannelId = rulesChannel.id;
+            CONFIG.rulesMsgId = rulesMsg.id;
+
+            return message.channel.send(`✅ Сообщения успешно отправлены, и бот начал следить за ними!\n\n**⚠️ ВНИМАНИЕ:** Чтобы бот не потерял их после перезапуска, открой файл \`index.js\` и замени ID сообщений в блоке \`CONFIG\` на эти:\n\n\`authMsgId: '${authMsg.id}'\`\n\`rulesMsgId: '${rulesMsg.id}'\``);
+        } catch (error) {
+            console.error('[SYSTEM] Ошибка при отправке сообщений авторизации:', error);
+            return message.channel.send('❌ Ошибка при отправке. Проверьте права бота в указанных каналах.');
+        }
+    }
+
+    if (normalized === 'setup_ticket' && isAdmin) {
+        const ticketChannel = message.mentions.channels.first() || message.channel;
+        
+        const embed = new EmbedBuilder()
+            .setColor(CONFIG.redColor)
+            .setTitle('🎫 Подача заявки')
+            .setDescription('Нажми на кнопку ниже, чтобы подать заявку на вступление.');
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('create_ticket')
+                    .setLabel('Create ticket')
+                    .setStyle(ButtonStyle.Primary)
+            );
+
+        try {
+            await ticketChannel.send({ embeds: [embed], components: [row] });
+            return message.channel.send('✅ Сообщение для создания тикета успешно отправлено!');
+        } catch (error) {
+            console.error('[SYSTEM] Ошибка при отправке сообщения тикета:', error);
+            return message.channel.send('❌ Ошибка при отправке. Проверьте права бота.');
+        }
     }
 
     // Проверка прав для объявлений
@@ -487,6 +583,143 @@ client.on('messageReactionAdd', async (reaction, user) => {
 
 client.on('messageReactionRemove', async (reaction, user) => {
     await handleReactionUpdate(reaction, user, 'Удалено');
+});
+
+client.on('interactionCreate', async interaction => {
+    if (interaction.isButton()) {
+        if (interaction.customId === 'create_ticket') {
+            const modal = new ModalBuilder()
+                .setCustomId('ticket_modal')
+                .setTitle('Заявка на вступление');
+
+            const q1 = new TextInputBuilder()
+                .setCustomId('q1')
+                .setLabel('ВАШЕ ИМЯ & ВОЗРАСТ В IRL & ВАШ ИГРОВОЙ НИК')
+                .setPlaceholder('Дмитрий & 54 года & Zhmyshenko Valery')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            const q2 = new TextInputBuilder()
+                .setCustomId('q2')
+                .setLabel('СПИСОК СЕМЕЙ В КОТОРЫХ БЫЛИ')
+                .setPlaceholder('Каi и менее именитые семьи')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const q3 = new TextInputBuilder()
+                .setCustomId('q3')
+                .setLabel('ОТКАТ СТРЕЛЬБЫ (От 12.500 урона)')
+                .setPlaceholder('Откат: Full Open Special (15 человек)')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            const q4 = new TextInputBuilder()
+                .setCustomId('q4')
+                .setLabel('ВАШ ЛВЛ В ИГРЕ & ВАШ ОНЛАЙН И ЧАСОВОЙ ПОЯС')
+                .setPlaceholder('5 LVL & 5-8 h & (+-1МСК)')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const q5 = new TextInputBuilder()
+                .setCustomId('q5')
+                .setLabel('ПОЧЕМУ ВЫ ХОТИТЕ ИГРАТЬ ИМЕННО В НАШЕЙ ФАМЕ?')
+                .setPlaceholder('Вдохновился вашей семьёй, фамилия Cartel на слуху.')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(q1),
+                new ActionRowBuilder().addComponents(q2),
+                new ActionRowBuilder().addComponents(q3),
+                new ActionRowBuilder().addComponents(q4),
+                new ActionRowBuilder().addComponents(q5)
+            );
+
+            await interaction.showModal(modal);
+            return;
+        }
+
+        if (interaction.customId.startsWith('ticket_')) {
+            const parts = interaction.customId.split('_');
+            const action = parts[1]; // reject, interview, accept
+            const targetUserId = parts[2];
+
+            // Проверяем права админа/модератора
+            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+            if (!member || (!hasPermission(member, CONFIG.adminRoleId) && !hasPermission(member, CONFIG.moderatorRoleIds))) {
+                return interaction.reply({ content: '❌ У вас нет прав для проверки тикетов!', ephemeral: true });
+            }
+
+            const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+
+            if (action === 'reject') {
+                await interaction.update({ content: `❌ Заявка отклонена модератором ${interaction.user.tag}`, components: [] });
+                if (targetMember) {
+                    await targetMember.send('❌ Ваша заявка на вступление была отклонена.').catch(() => null);
+                }
+            } else if (action === 'interview') {
+                await interaction.update({ content: `⏳ Модератор ${interaction.user.tag} допустил пользователя к обзвону.`, components: [] });
+                if (targetMember) {
+                    const role = interaction.guild.roles.cache.get(CONFIG.interviewRoleId);
+                    if (role) await targetMember.roles.add(role).catch(console.error);
+                    await targetMember.send('✅ Ваша заявка одобрена! Вы допущены к обзвону.').catch(() => null);
+                }
+            } else if (action === 'accept') {
+                await interaction.update({ content: `✅ Модератор ${interaction.user.tag} принял пользователя без обзвона.`, components: [] });
+                if (targetMember) {
+                    const role = interaction.guild.roles.cache.get(CONFIG.memberRoleId);
+                    if (role) await targetMember.roles.add(role).catch(console.error);
+                    await targetMember.send('✅ Ваша заявка одобрена! Вы приняты сразу.').catch(() => null);
+                }
+            }
+        }
+    }
+
+    if (interaction.isModalSubmit()) {
+        if (interaction.customId === 'ticket_modal') {
+            const q1 = interaction.fields.getTextInputValue('q1');
+            const q2 = interaction.fields.getTextInputValue('q2');
+            const q3 = interaction.fields.getTextInputValue('q3');
+            const q4 = interaction.fields.getTextInputValue('q4');
+            const q5 = interaction.fields.getTextInputValue('q5');
+
+            const embed = new EmbedBuilder()
+                .setColor(CONFIG.redColor)
+                .setTitle(`🎫 Новая заявка от ${interaction.user.tag}`)
+                .addFields(
+                    { name: 'ИМЯ & ВОЗРАСТ В IRL & ИГРОВОЙ НИК', value: q1 },
+                    { name: 'СПИСОК СЕМЕЙ', value: q2 },
+                    { name: 'ОТКАТ СТРЕЛЬБЫ', value: q3 },
+                    { name: 'ЛВЛ & ОНЛАЙН И ЧАСОВОЙ ПОЯС', value: q4 },
+                    { name: 'ПОЧЕМУ ВЫ ХОТИТЕ ИГРАТЬ У НАС?', value: q5 }
+                )
+                .setTimestamp();
+
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`ticket_reject_${interaction.user.id}`)
+                        .setLabel('Отклонить')
+                        .setStyle(ButtonStyle.Danger),
+                    new ButtonBuilder()
+                        .setCustomId(`ticket_interview_${interaction.user.id}`)
+                        .setLabel('Допустить к обзвону')
+                        .setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder()
+                        .setCustomId(`ticket_accept_${interaction.user.id}`)
+                        .setLabel('Принять сразу')
+                        .setStyle(ButtonStyle.Success)
+                );
+
+            const checkChannel = await interaction.client.channels.fetch(CONFIG.ticketCheckChannelId).catch(() => null);
+            if (checkChannel) {
+                await checkChannel.send({ embeds: [embed], components: [row] });
+                await interaction.reply({ content: '✅ Ваша заявка успешно отправлена на проверку!', ephemeral: true });
+            } else {
+                await interaction.reply({ content: '❌ Ошибка: канал для проверки тикетов не найден. Сообщите администрации.', ephemeral: true });
+            }
+        }
+    }
 });
 
 client.login(TOKEN);
