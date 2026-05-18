@@ -650,14 +650,14 @@ client.on('interactionCreate', async interaction => {
             const q1 = new TextInputBuilder()
                 .setCustomId('q1')
                 .setLabel('ВАШЕ ИМЯ & ВОЗРАСТ В IRL & ВАШ ИГРОВОЙ НИК')
-                .setPlaceholder('Дмитрий & 54 года & Zhmyshenko Valery')
+                .setPlaceholder('Пример: Дмитрий & 54 года & Zhmyshenko Valery')
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true);
 
             const q2 = new TextInputBuilder()
                 .setCustomId('q2')
                 .setLabel('СПИСОК СЕМЕЙ В КОТОРЫХ БЫЛИ')
-                .setPlaceholder('Каi и менее именитые семьи')
+                .setPlaceholder('Пример: Kai, менее именитые семьи')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
@@ -671,14 +671,14 @@ client.on('interactionCreate', async interaction => {
             const q4 = new TextInputBuilder()
                 .setCustomId('q4')
                 .setLabel('ВАШ ЛВЛ В ИГРЕ & ВАШ ОНЛАЙН И ЧАСОВОЙ ПОЯС')
-                .setPlaceholder('5 LVL & 5-8 h & (+-1МСК)')
+                .setPlaceholder('Пример: 5 LVL & 5-8 h & (+-1МСК)')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
             const q5 = new TextInputBuilder()
                 .setCustomId('q5')
                 .setLabel('ПОЧЕМУ ВЫ ХОТИТЕ ИГРАТЬ ИМЕННО В НАШЕЙ ФАМЕ?')
-                .setPlaceholder('Вдохновился вашей семьёй, фамилия Cartel на слуху.')
+                .setPlaceholder('Пример: Вдохновился вашей семьёй...')
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true);
 
