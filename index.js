@@ -175,8 +175,16 @@ client.on('messageCreate', async (message) => {
     console.log(`[SYSTEM] Admin command from ${message.author.tag}: ${message.content}`);
     await logToChannel(`👤 ${message.author.tag} использовал команду: \`${message.content}\``);
 
-    // Удаляем команду пользователя
-    await message.delete().catch(err => console.error('[SYSTEM] Ошибка при удалении команды:', err));
+    // Удаляем команду пользователя (игнорируем Unknown Message если другой инстанс уже удалил)
+    try {
+        await message.delete();
+    } catch (err) {
+        if (err && err.code === 10008) {
+            // Unknown Message — игнорируем
+        } else {
+            console.error('[SYSTEM] Ошибка при удалении команды:', err);
+        }
+    }
 
     const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
     const normalized = args[0].toLowerCase();
@@ -619,9 +627,15 @@ async function handleReactionUpdate(reaction, user, action) {
                 await adminChannel.send({ embeds: [resultEmbed] });
                 await logToChannel(`🎯 Порог ${trackedInfo.threshold} достигнут в объявлении ${trackedInfo.type.toUpperCase()}! Участников: ${trackedInfo.participants.length}`);
 
-                await message.delete().catch(err =>
-                    console.error('[SYSTEM] Ошибка при удалении сообщения:', err)
-                );
+                try {
+                    await message.delete();
+                } catch (err) {
+                    if (err && err.code === 10008) {
+                        // Unknown Message - другой инстанс уже удалил
+                    } else {
+                        console.error('[SYSTEM] Ошибка при удалении сообщения:', err);
+                    }
+                }
             }
             return;
         }
