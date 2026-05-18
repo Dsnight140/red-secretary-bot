@@ -4,9 +4,41 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-// Мини-сервер для Render (бесплатный Web Service требует открытый порт)
+// Мини-сервер для Render (проверка статуса и диагностики деплоя)
 const PORT = process.env.PORT || 3000;
+
+function getGitCommit() {
+    try {
+        const head = fs.readFileSync(path.join(__dirname, '.git', 'HEAD'), 'utf8').trim();
+        if (head.startsWith('ref:')) {
+            const ref = head.split(' ')[1];
+            const refPath = path.join(__dirname, '.git', ref);
+            return fs.readFileSync(refPath, 'utf8').trim();
+        }
+        return head;
+    } catch (err) {
+        return null;
+    }
+}
+
 http.createServer((req, res) => {
+    if (req.url === '/_status') {
+        const commit = getGitCommit();
+        const stats = fs.statSync(__filename);
+        const payload = {
+            pid: process.pid,
+            uptime: process.uptime(),
+            cwd: process.cwd(),
+            node_version: process.version,
+            env: { NODE_ENV: process.env.NODE_ENV, RENDER: process.env.RENDER || null },
+            commit: commit ? commit.slice(0, 10) : null,
+            index_mtime: stats.mtimeMs,
+            timestamp: Date.now()
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(payload));
+    }
+
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running');
 }).listen(PORT, () => {
@@ -113,6 +145,14 @@ client.once('ready', async () => {
     await logToChannel(`🤖 Бот ${client.user.tag} успешно запущен и готов к работе!`);
     // Установка статуса бота
     client.user.setActivity('за сервером AGGRESSED', { type: 'WATCHING' });
+    // Диагностический вывод: PID, commit и время модификации index.js
+    try {
+        const commit = getGitCommit();
+        const stats = fs.statSync(__filename);
+        console.log(`[SYSTEM] PID=${process.pid} commit=${commit ? commit.slice(0,10) : 'n/a'} index_mtime=${stats.mtime.toISOString()}`);
+    } catch (err) {
+        console.log('[SYSTEM] Diagnostics unavailable:', err.message);
+    }
 });
 
 client.on('error', (error) => {
