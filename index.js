@@ -69,6 +69,9 @@ const ANNOUNCEMENTS = {
 // Временное хранение выбора категории заявки пользователем: userId -> category
 const ticketSelections = new Map();
 
+// Набор для предотвращения двукратной обработки одной и той же команды (message.id)
+const processedCommands = new Set();
+
 // Роли по реакциям: emoji -> roleId
 const ROLE_REACTIONS = {
     '⚔️': 'ID_РОЛИ_ВОИН',
@@ -105,7 +108,7 @@ process.on('uncaughtException', (error) => {
     console.error('[SYSTEM] Необработанное исключение:', error);
 });
 
-client.once('clientReady', async () => {
+client.once('ready', async () => {
     console.log(`[SYSTEM] Секретарь ${client.user.tag} заступил на пост.`);
     await logToChannel(`🤖 Бот ${client.user.tag} успешно запущен и готов к работе!`);
     // Установка статуса бота
@@ -119,6 +122,15 @@ client.on('error', (error) => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (!message.content.startsWith(PREFIX)) return;
+
+    // Предотвращаем двукратную обработку одной и той же команды (иногда событие может сработать несколько раз)
+    if (processedCommands.has(message.id)) {
+        console.log(`[SYSTEM] Игнорирую дубликат команды: ${message.id}`);
+        return;
+    }
+    processedCommands.add(message.id);
+    // Удаляем из набора через 10 секунд, чтобы память не росла
+    setTimeout(() => processedCommands.delete(message.id), 10000);
 
     console.log(`[SYSTEM] Admin command from ${message.author.tag}: ${message.content}`);
     await logToChannel(`👤 ${message.author.tag} использовал команду: \`${message.content}\``);
@@ -725,7 +737,13 @@ client.on('interactionCreate', async interaction => {
                 new ActionRowBuilder().addComponents(q5)
             );
 
-            await interaction.showModal(modal);
+            try {
+                await interaction.showModal(modal);
+            } catch (err) {
+                console.error('[SYSTEM] Ошибка при показе модального окна:', err);
+                // Если интеракция устарела или неизвестна — уведомляем пользователя и просим нажать кнопку снова
+                await interaction.reply({ content: '❌ Не удалось открыть форму — интеракция устарела. Пожалуйста, нажмите кнопку ещё раз.', ephemeral: true }).catch(() => null);
+            }
             return;
         }
 
