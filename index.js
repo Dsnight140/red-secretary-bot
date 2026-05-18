@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder } = require('discord.js');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -65,6 +65,9 @@ const ANNOUNCEMENTS = {
     contract: 'Кого выбрать в контракт?',
     vzp: 'Кто будет играть взп?',
 };
+
+// Временное хранение выбора категории заявки пользователем: userId -> category
+const ticketSelections = new Map();
 
 // Роли по реакциям: emoji -> roleId
 const ROLE_REACTIONS = {
@@ -597,6 +600,16 @@ client.on('messageReactionRemove', async (reaction, user) => {
 });
 
 client.on('interactionCreate', async interaction => {
+    // Обработка выбора категории в селекте для тикета
+    if (interaction.isStringSelectMenu && interaction.isStringSelectMenu()) {
+        if (interaction.customId === 'ticket_category') {
+            const choice = interaction.values[0];
+            ticketSelections.set(interaction.user.id, choice);
+            await interaction.reply({ content: `Вы выбрали: **${choice}**`, ephemeral: true }).catch(() => null);
+        }
+        return;
+    }
+
     if (interaction.isButton()) {
         if (interaction.customId === 'create_ticket') {
             await interaction.deferReply({ ephemeral: true });
@@ -613,11 +626,12 @@ client.on('interactionCreate', async interaction => {
 
             try {
                 const parentId = interaction.channel.parentId;
-                
+                const selectedCategory = ticketSelections.get(interaction.user.id) || 'other';
                 const ticketChannel = await interaction.guild.channels.create({
                     name: channelName,
                     type: 0, // GuildText
                     parent: parentId, // создаем в той же категории
+                    topic: `Ticket ${newTicketNum} | ${selectedCategory} | creator:${interaction.user.id}`,
                     permissionOverwrites: [
                         { id: interaction.guild.id, deny: ['ViewChannel'] },
                         { id: interaction.user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
@@ -632,15 +646,26 @@ client.on('interactionCreate', async interaction => {
 
                 const embed = new EmbedBuilder()
                     .setColor(CONFIG.redColor)
-                    .setTitle('🎫 Твоя заявка')
-                    .setDescription(`Привет, <@${interaction.user.id}>! Нажми на кнопку ниже, чтобы заполнить анкету на вступление.`);
+                    .setTitle('【ＴＩＣＫＥＴ】 🎟️ ПОДАЧА ЗАЯВКИ')
+                    .setDescription(`Привет, <@${interaction.user.id}>!
+Создан тикет **#${String(newTicketNum).padStart(4, '0')}** (${selectedCategory}).\nНажми кнопку ниже, чтобы заполнить анкету или связаться с модерацией.`)
+                    .addFields(
+                        { name: 'Категория', value: `>>> ${selectedCategory}`, inline: true },
+                        { name: 'Создатель', value: `>>> <@${interaction.user.id}>`, inline: true }
+                    )
+                    .setFooter({ text: `Ticket ${String(newTicketNum).padStart(4, '0')}` })
+                    .setTimestamp();
 
                 const row = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
                             .setCustomId('fill_ticket_form')
-                            .setLabel('Заполнить анкету')
-                            .setStyle(ButtonStyle.Primary)
+                            .setLabel('✍️ Заполнить заявку')
+                            .setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder()
+                            .setCustomId(`ticket_close_${interaction.user.id}_${ticketChannel.id}`)
+                            .setLabel('🔒 Закрыть тикет')
+                            .setStyle(ButtonStyle.Danger)
                     );
 
                 await ticketChannel.send({ content: `<@${interaction.user.id}>`, embeds: [embed], components: [row] });
@@ -785,7 +810,22 @@ client.on('interactionCreate', async interaction => {
                 }
             }
 
-            // Удаляем канал тикета во всех случаях, КРОМЕ interview (где мы уже сделали return)
+            // Особая обработка закрытия тикета
+            if (action === 'close') {
+                const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                // Только автор тикета или модерация/админ могут закрыть
+                if (targetUserId !== interaction.user.id && (!member || (!hasPermission(member, CONFIG.adminRoleId) && !hasPermission(member, CONFIG.ticketModeratorRoleId)))) {
+                    return interaction.reply({ content: '❌ У вас нет прав закрыть этот тикет.', ephemeral: true });
+                }
+                const tChannel = interaction.guild.channels.cache.get(ticketChannelId);
+                if (tChannel) {
+                    await tChannel.delete().catch(() => null);
+                    return interaction.reply({ content: '✅ Тикет закрыт.', ephemeral: true });
+                }
+                return interaction.reply({ content: '❌ Канал тикета не найден.', ephemeral: true });
+            }
+
+            // Удаляем канал тикета во всех остальных случаях, КРОМЕ interview (где мы уже сделали return)
             if (ticketChannelId) {
                 const tChannel = interaction.guild.channels.cache.get(ticketChannelId);
                 if (tChannel) {
