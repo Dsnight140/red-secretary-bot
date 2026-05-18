@@ -1,14 +1,19 @@
 {
   "name": "red-secretary-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Discord bot — Red Secretary (автоматизация приема, тикетов и объявлений).",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dsnight140/red-secretary-bot.git"
+  },
   "type": "commonjs",
   "dependencies": {
     "discord.js": "^14.26.4",

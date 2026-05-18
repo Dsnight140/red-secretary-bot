@@ -48,6 +48,16 @@ const CONFIG = {
     announcementRoleIds: ['1504134644600275187', '1504144608517689445', '1504144783105589440', '1504134935282188409', '1504145208508420176', '1504145305082265731'], // Только объявления (массив для нескольких ролей)
 };
 
+// Утилита для быстрого создания стильных эмбедов
+function createEmbed({ title = null, description = null, color = CONFIG.redColor, footer = null, fields = [] } = {}) {
+    const e = new EmbedBuilder().setColor(color);
+    if (title) e.setTitle(title);
+    if (description) e.setDescription(description);
+    if (footer) e.setFooter({ text: footer });
+    if (fields && fields.length) e.addFields(fields);
+    return e;
+}
+
 const PREFIX = '!';
 const trackedMessages = new Map();
 const userWarns = new Map(); // Система варнов: userId -> количество варнов
@@ -141,7 +151,7 @@ client.on('messageCreate', async (message) => {
             helpText += '\n**АДМИНСКИЕ КОМАНДЫ:**\n!status текст — установить статус бота\n!setup_auth #канал_вступления #канал_правил — отправить сообщения вступления и правил\n!setup_ticket #канал — создать сообщение с кнопкой тикета\n';
         }
 
-        return message.channel.send(helpText);
+        return message.channel.send({ embeds: [createEmbed({ title: 'Справка по командам', description: helpText })] });
     }
 
     if (normalized === 'setup_auth' && isAdmin) {
@@ -206,7 +216,7 @@ client.on('messageCreate', async (message) => {
             CONFIG.rulesChannelId = rulesChannel.id;
             CONFIG.rulesMsgId = rulesMsg.id;
 
-            return message.channel.send(`✅ Сообщения успешно отправлены, и бот начал следить за ними!\n\n**⚠️ ВНИМАНИЕ:** Чтобы бот не потерял их после перезапуска, открой файл \`index.js\` и замени ID сообщений в блоке \`CONFIG\` на эти:\n\n\`authMsgId: '${authMsg.id}'\`\n\`rulesMsgId: '${rulesMsg.id}'\``);
+            return message.channel.send({ embeds: [createEmbed({ title: 'Настроено', description: `✅ Сообщения отправлены и бот начал следить за ними.\n\nID сообщений:\nauthMsgId: '${authMsg.id}'\nrulesMsgId: '${rulesMsg.id}'`, footer: 'Скопируй ID в блок CONFIG для постоянного хранения' })] });
         } catch (error) {
             console.error('[SYSTEM] Ошибка при отправке сообщений авторизации:', error);
             return message.channel.send('❌ Ошибка при отправке. Проверьте права бота в указанных каналах.');
@@ -231,7 +241,7 @@ client.on('messageCreate', async (message) => {
 
         try {
             await ticketChannel.send({ embeds: [embed], components: [row] });
-            return message.channel.send('✅ Сообщение для создания тикета успешно отправлено!');
+            return message.channel.send({ embeds: [createEmbed({ title: 'Тикет готов', description: 'Сообщение для создания тикета успешно отправлено!', footer: 'Пользователи могут нажать кнопку, чтобы создать свой тикет' })] });
         } catch (error) {
             console.error('[SYSTEM] Ошибка при отправке сообщения тикета:', error);
             return message.channel.send('❌ Ошибка при отправке. Проверьте права бота.');
@@ -265,8 +275,8 @@ client.on('messageCreate', async (message) => {
         const warnCount = userWarns.get(user.id) + 1;
         userWarns.set(user.id, warnCount);
 
-        await message.channel.send(`⚠️ ${user.tag} получил варн! Причина: ${reason}\nВарнов: ${warnCount}/3`);
-        await user.send(`⚠️ Ты получил варн на сервере AGGRESSED!\nПричина: ${reason}\nВарнов: ${warnCount}/3`).catch(() => null);
+        await message.channel.send({ embeds: [createEmbed({ title: 'Выдан варн', description: `⚠️ ${user.tag} получил варн!\nПричина: ${reason}`, footer: `Варнов: ${warnCount}/3` })] });
+        await user.send({ embeds: [createEmbed({ title: 'Вам выдан варн', description: `Причина: ${reason}`, footer: `Варнов: ${warnCount}/3` })] }).catch(() => null);
         console.log(`[SYSTEM] ${user.tag} получил варн #${warnCount}`);
         await logToChannel(`⚠️ ${message.author.tag} выдал варн ${user.tag} (#${warnCount}). Причина: ${reason}`);
         return;
@@ -276,21 +286,21 @@ client.on('messageCreate', async (message) => {
         const user = message.mentions.users.first();
         if (!user) return message.channel.send('Укажи пользователя: !warnscount @user');
         const count = userWarns.get(user.id) || 0;
-        return message.channel.send(`📊 ${user.tag} имеет ${count} варнов`);
+        return message.channel.send({ embeds: [createEmbed({ title: 'Статистика варнов', description: `📊 ${user.tag} имеет ${count} варнов` })] });
     }
 
     if (normalized === 'warnreset') {
         const user = message.mentions.users.first();
         if (!user) return message.channel.send('Укажи пользователя: !warnreset @user');
         userWarns.delete(user.id);
-        return message.channel.send(`✅ Варны ${user.tag} сброшены`);
+        return message.channel.send({ embeds: [createEmbed({ title: 'Варны сброшены', description: `✅ Варны ${user.tag} сброшены` })] });
     }
 
     // УТИЛИТЫ
 
     if (normalized === 'poll') {
         const pollText = customText;
-        if (!pollText.includes('|')) return message.channel.send('Синтаксис: !poll вопрос | опция1 | опция2');
+        if (!pollText.includes('|')) return message.channel.send({ embeds: [createEmbed({ title: 'Ошибка синтаксиса', description: 'Синтаксис: !poll вопрос | опция1 | опция2', color: 0xFFA0A0 })] });
 
         const parts = pollText.split('|').map(p => p.trim());
         const question = parts[0];
@@ -319,7 +329,7 @@ client.on('messageCreate', async (message) => {
             .setDescription(customText || 'Объявление пусто')
             .setTimestamp();
         await message.channel.send({ content: '@everyone', embeds: [announceEmbed] });
-        return message.channel.send('✅ Объявление отправлено');
+        return message.channel.send({ embeds: [createEmbed({ title: 'Объявление отправлено', description: '✅ Объявление успешно опубликовано.' })] });
     }
 
     if (normalized === 'remind') {
@@ -330,7 +340,7 @@ client.on('messageCreate', async (message) => {
         const time = parseInt(timeStr, 10) * 1000;
         if (isNaN(time)) return message.channel.send('Укажи время в секундах');
 
-        await message.channel.send(`⏰ Напоминание установлено на ${timeStr}с`);
+        await message.channel.send({ embeds: [createEmbed({ title: 'Напоминание', description: `⏰ Напоминание установлено на ${timeStr}с` })] });
         setTimeout(() => {
             message.channel.send(`⏰ <@${message.author.id}> Напоминание: ${remindText}`).catch(() => null);
         }, time);
@@ -340,7 +350,7 @@ client.on('messageCreate', async (message) => {
     if (!Object.prototype.hasOwnProperty.call(ANNOUNCEMENTS, normalized)) {
         console.log(`[SYSTEM] Неизвестная команда: ${normalized}`);
         await logToChannel(`❓ ${message.author.tag} ввел неизвестную команду: \`${normalized}\``);
-        return message.channel.send('Неизвестная команда. Напиши !help, чтобы увидеть список команд.');
+        return message.channel.send({ embeds: [createEmbed({ title: 'Неизвестная команда', description: 'Неизвестная команда. Напиши !help, чтобы увидеть список команд.', color: 0xFFA500 })] });
     }
 
     let threshold = null;
@@ -388,7 +398,7 @@ client.on('messageCreate', async (message) => {
     const channelName = normalized === 'contract' ? 'контракт' : normalized === 'vzp' ? 'взп' : 'публичный';
     console.log(`[SYSTEM] Сообщение [${normalized}] отправлено в канал ${targetChannelId} с ID ${sentMessage.id} и порогом ${threshold}`);
     await logToChannel(`📢 ${message.author.tag} создал объявление ${normalized.toUpperCase()}: ${sentMessage.url}${thresholdText}`);
-    await message.channel.send(`Сообщение отправлено в канал ${channelName} и отслеживается: ${sentMessage.url}${thresholdText}`);
+    await message.channel.send({ embeds: [createEmbed({ title: 'Объявление опубликовано', description: `Сообщение отправлено в канал ${channelName} и отслеживается: ${sentMessage.url}${thresholdText}` })] });
 });
 
 async function handleReactionUpdate(reaction, user, action) {
@@ -663,7 +673,7 @@ client.on('interactionCreate', async interaction => {
 
             const q3 = new TextInputBuilder()
                 .setCustomId('q3')
-                .setLabel('ОТКАТ СТРЕЛЬБЫ (От 12.500 урона)')
+                .setLabel('ОТКАТ СТРЕЛЬБЫ (От 10.000 урона)')
                 .setPlaceholder('Откат: Full Open Special (15 человек)')
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true);
