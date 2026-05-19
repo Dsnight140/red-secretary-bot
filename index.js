@@ -293,7 +293,7 @@ client.on('messageCreate', async (message) => {
             .setColor(CONFIG.redColor)
             .setTitle('🎫 Подача заявки')
             .setDescription('Нажми на селект и выбери категорию, затем нажми кнопку "Создать тикет". Мы подготовим для тебя приватный канал.')
-            .setImage('attachment://ticket.mp4')
+            .setImage('attachment://kling_20260519_作品_shot_1_5s__918_0.mp4')
             .setFooter({ text: 'AGGRESSED • Тикеты' });
 
         const select = new StringSelectMenuBuilder()
